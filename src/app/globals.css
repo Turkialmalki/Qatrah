@@ -1,0 +1,87 @@
+@import "tailwindcss";
+
+:root {
+  --background: #f7f4ec;
+  --foreground: #0b3041;
+
+  --color-navy-950: #081f2b;
+  --color-navy-900: #0b3041;
+  --color-navy-800: #123b4e;
+  --color-navy-700: #1a4a60;
+  --color-navy-600: #245a73;
+
+  --color-green-900: #12362a;
+  --color-green-800: #1f4d3d;
+  --color-green-700: #2a634f;
+
+  --color-gold-600: #a9821f;
+  --color-gold-500: #c9a227;
+  --color-gold-400: #dcb94a;
+  --color-gold-300: #e9d493;
+  --color-gold-100: #f7edcf;
+
+  --color-cream: #f7f4ec;
+  --color-cream-dark: #ece5d2;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: "Tajawal", "Segoe UI", "Noto Sans Arabic", Tahoma, Geneva, Arial, sans-serif;
+
+  --color-navy-950: var(--color-navy-950);
+  --color-navy-900: var(--color-navy-900);
+  --color-navy-800: var(--color-navy-800);
+  --color-navy-700: var(--color-navy-700);
+  --color-navy-600: var(--color-navy-600);
+
+  --color-green-900: var(--color-green-900);
+  --color-green-800: var(--color-green-800);
+  --color-green-700: var(--color-green-700);
+
+  --color-gold-600: var(--color-gold-600);
+  --color-gold-500: var(--color-gold-500);
+  --color-gold-400: var(--color-gold-400);
+  --color-gold-300: var(--color-gold-300);
+  --color-gold-100: var(--color-gold-100);
+
+  --color-cream: var(--color-cream);
+  --color-cream-dark: var(--color-cream-dark);
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+}
+
+::selection {
+  background: var(--color-gold-300);
+  color: var(--color-navy-950);
+}
+
+.gold-gradient {
+  background: linear-gradient(135deg, #e9d493 0%, #c9a227 45%, #a9821f 100%);
+}
+
+.navy-gradient {
+  background: linear-gradient(160deg, #0b3041 0%, #081f2b 100%);
+}
+
+.text-gold-gradient {
+  background: linear-gradient(135deg, #e9d493 0%, #c9a227 60%, #a9821f 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.card-shadow {
+  box-shadow: 0 1px 2px rgba(11, 48, 65, 0.06), 0 8px 24px -8px rgba(11, 48, 65, 0.12);
+}
+
+@keyframes fade-up {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.animate-fade-up {
+  animation: fade-up 0.5s ease-out both;
+}
