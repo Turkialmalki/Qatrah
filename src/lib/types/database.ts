@@ -256,7 +256,3 @@ export interface KnowledgeBaseArticle {
   created_by: string | null;
   created_at: string;
 }
-
-// Minimal Database generic so @supabase/ssr type params are satisfiable.
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-export type Database = any;

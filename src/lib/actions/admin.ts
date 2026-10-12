@@ -1,6 +1,6 @@
 "use server";
 
-import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/db/server";
 import { revalidatePath } from "next/cache";
 
 export async function setProviderStatusAction(providerId: string, status: "approved" | "rejected" | "suspended") {

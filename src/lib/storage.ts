@@ -1,7 +1,7 @@
-import type { SupabaseClient } from "@supabase/supabase-js";
+import type { DemoClient } from "@/lib/db/server";
 
 export const SERVICE_IMAGES_BUCKET = "service-images";
-export const MAX_IMAGE_BYTES = 5 * 1024 * 1024; // mirrors the bucket's file_size_limit
+export const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
 export const ALLOWED_IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp", "image/avif"];
 
 export interface UploadResult {
@@ -10,13 +10,14 @@ export interface UploadResult {
 }
 
 /**
- * Uploads one image to the public `service-images` bucket under the owner's
- * folder, which is what the bucket's RLS policies key on. Returns the public
- * URL to store on the row.
+ * Uploads one image and returns the URL to store on the row.
+ *
+ * In demo mode the bytes are kept in memory and served by
+ * `/api/demo-image/<path>`, so an upload lives as long as the server instance
+ * does. Files are still namespaced under the owner's id.
  */
 export async function uploadServiceImage(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  supabase: SupabaseClient<any>,
+  client: DemoClient,
   ownerId: string,
   file: File
 ): Promise<UploadResult> {
@@ -30,13 +31,13 @@ export async function uploadServiceImage(
   const ext = file.name.split(".").pop()?.toLowerCase().replace(/[^a-z0-9]/g, "") || "jpg";
   const path = `${ownerId}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
 
-  const { error } = await supabase.storage
+  const { error } = await client.storage
     .from(SERVICE_IMAGES_BUCKET)
-    .upload(path, file, { contentType: file.type, upsert: false });
+    .upload(path, file, { contentType: file.type });
 
   if (error) return { error: "تعذّر رفع الصورة، حاول مرة أخرى" };
 
-  const { data } = supabase.storage.from(SERVICE_IMAGES_BUCKET).getPublicUrl(path);
+  const { data } = client.storage.from(SERVICE_IMAGES_BUCKET).getPublicUrl(path);
   return { url: data.publicUrl };
 }
 

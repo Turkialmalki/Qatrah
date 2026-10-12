@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/db/server";
 import { DashboardShell } from "@/components/dashboard/shell";
 import { Badge } from "@/components/ui/badge";
 import { STATUS_LABELS } from "@/lib/utils";

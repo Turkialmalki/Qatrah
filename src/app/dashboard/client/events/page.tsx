@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/db/server";
 import { PageHeader } from "@/components/dashboard/shell";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";

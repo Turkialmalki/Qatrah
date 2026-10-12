@@ -1,6 +1,6 @@
 "use server";
 
-import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/db/server";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { optimizeBudget, type BudgetItemInput } from "@/lib/engines/budget";

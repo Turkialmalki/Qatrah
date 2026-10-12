@@ -1,6 +1,6 @@
 "use server";
 
-import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/db/server";
 import { revalidatePath } from "next/cache";
 import { findPackage } from "@/lib/catalog/packages";
 import { isFilledFile, uploadServiceImage } from "@/lib/storage";

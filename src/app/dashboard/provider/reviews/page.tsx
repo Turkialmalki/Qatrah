@@ -1,4 +1,4 @@
-import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/db/server";
 import { PageHeader } from "@/components/dashboard/shell";
 import { Card, CardBody } from "@/components/ui/card";
 import { Star } from "lucide-react";

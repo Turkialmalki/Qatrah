@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/db/server";
 import { DashboardShell } from "@/components/dashboard/shell";
 
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
