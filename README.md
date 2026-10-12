@@ -16,6 +16,28 @@ Next.js + TypeScript + Tailwind CSS + Supabase SaaS for Saudi event/wedding plan
 ## The 14 platform modules (from the SOW)
 User management, event management, hall management, service management, smart matching engine, design management, pricing, fair pricing engine, budget optimization engine, execution management, smart planning engine, quality, evaluation, knowledge base — all implemented. AI-assisted matching *verification* is intentionally out of scope for v1 (per the proposal); the "smart" engines are transparent, rule-based algorithms in `src/lib/engines/`.
 
+## Two event tracks
+
+The platform splits event creation into two flows, chosen at `/dashboard/client/events/new`:
+
+- **أفراح ومناسبات اجتماعية** (`/new/social`) — weddings, engagements, graduations, birthdays. Covers hall, catering, decor, photography, music and planning.
+- **فعاليات ومؤتمرات** (`/new/conference`) — conferences, exhibitions, forums, workshops, corporate events and festivals. Adds an agenda panel (days, sessions, speakers, booths, registration desk) stored in `conference_details`, and the conference-only service categories: `av`, `translation`, `booths`, `security`, `transport`.
+
+Each track gets its own execution timeline in `src/lib/engines/planning.ts` — the conference plan works backward from 90 days out, the social one from 60.
+
+## Ready-made service packages
+
+`src/lib/catalog/packages.ts` holds the platform's ready-made packages, grouped by category and tier (أساسية / قياسية / متميزة). They are the backbone of two rules:
+
+1. A provider **adopts a package** in one click — title, description and inclusions come from the catalogue, and only the price is theirs to set. The adopted key is stored on `services.package_key`.
+2. A provider who **does not** adopt a package must upload a photo and write a description of at least 80 characters. This is enforced in `createServiceAction` *and* by the `services_custom_requires_media` check constraint, so it holds even if the action is bypassed.
+
+Public category pages at `/services/[category]` show the packages alongside the providers' own listings.
+
+## Providers offer multiple services
+
+`provider_profiles.categories` is an array of every category a provider serves; `category` remains the primary one used for display. Providers manage the list at `/dashboard/provider/profile`, and every selected category becomes available when adding services. Matching keys on each *service's* own category, so one provider competes independently in each category they serve.
+
 ## Local setup
 
 1. **Install dependencies**
@@ -23,7 +45,9 @@ User management, event management, hall management, service management, smart ma
    npm install
    ```
 
-2. **Create a Supabase project** at [supabase.com](https://supabase.com), then in the SQL editor run the full contents of `supabase/schema.sql` once. This creates every table, enum, trigger, and Row Level Security policy.
+2. **Create a Supabase project** at [supabase.com](https://supabase.com), then in the SQL editor run the full contents of `supabase/schema.sql` once. This creates every table, enum, trigger, Row Level Security policy, and the public `service-images` Storage bucket used for provider uploads.
+
+   For an existing project created before the packages/conferences work, run `supabase/migrations/0002_packages_conferences_multicategory.sql` instead — **in two steps**, since Postgres will not let a new enum label be used in the transaction that created it. Run the `0002a` block (the `alter type … add value` statements) on its own first, then the `0002b` block.
 
 3. **Environment variables** — copy `.env.local.example` to `.env.local` and fill in from Supabase Project Settings → API:
    ```
@@ -61,13 +85,17 @@ src/
   app/                 routes (App Router)
     (auth)/login, signup
     dashboard/client|provider|admin
-    halls, services, knowledge-base, how-it-works   (public)
-  components/ui        Button, Card, Input, Badge primitives
-  components/layout    Navbar, Footer
-  components/dashboard Sidebar shell shared by all 3 roles
+    halls, halls/[id], services, services/[category], providers, providers/[id],
+    events, knowledge-base, how-it-works, about, contact, terms, privacy   (public)
+  components/ui        Button, Card, Input, Badge, Stat, EmptyState, PackageCard, ImageField
+  components/layout    Navbar (+ mobile sheet), Footer, PageHero, legal shell
+  components/dashboard Shell + role-aware nav (sidebar on desktop, drawer on mobile)
   lib/supabase         browser/server/proxy Supabase clients
   lib/engines          matching.ts, pricing.ts, budget.ts, planning.ts — the 4 smart engines
-  lib/actions          Server Actions (auth, events, provider, admin)
+  lib/catalog          packages.ts — the ready-made service package catalogue
+  lib/actions          Server Actions (auth, events, provider, admin, profile, design)
+  lib/storage.ts       uploads to the public service-images bucket
   lib/types            hand-written DB types
-supabase/schema.sql    full DB schema + RLS policies + seed KB articles
+supabase/schema.sql    full DB schema + RLS policies + storage bucket + seed KB articles
+supabase/migrations/   incremental migrations for existing projects
 ```

@@ -10,6 +10,12 @@ export type ProviderCategory =
   | "photography"
   | "music"
   | "planning"
+  // conference & exhibition categories
+  | "av"
+  | "translation"
+  | "booths"
+  | "security"
+  | "transport"
   | "other";
 export type EventStatus =
   | "draft"
@@ -19,7 +25,20 @@ export type EventStatus =
   | "in_execution"
   | "completed"
   | "cancelled";
-export type EventType = "wedding" | "engagement" | "graduation" | "corporate" | "birthday" | "other";
+export type EventType =
+  // social occasions
+  | "wedding"
+  | "engagement"
+  | "graduation"
+  | "birthday"
+  // conferences & corporate events
+  | "corporate"
+  | "conference"
+  | "exhibition"
+  | "forum"
+  | "workshop"
+  | "festival"
+  | "other";
 export type MatchStatus = "proposed" | "quoted" | "accepted" | "declined" | "expired";
 export type BookingStatus = "pending_payment" | "paid" | "in_progress" | "completed" | "cancelled" | "disputed";
 export type PaymentStatus = "pending" | "paid" | "refunded" | "failed";
@@ -40,7 +59,10 @@ export interface Profile {
 export interface ProviderProfile {
   id: string;
   business_name: string;
+  /** Primary / display category. */
   category: ProviderCategory;
+  /** Every category this provider serves — a provider may offer many services. */
+  categories: ProviderCategory[];
   bio: string | null;
   status: ProviderStatus;
   commercial_registration: string | null;
@@ -78,8 +100,28 @@ export interface ServiceItem {
   base_price: number;
   min_price: number | null;
   max_price: number | null;
+  /** Adopted platform package key; null means the provider wrote their own listing. */
+  package_key: string | null;
+  inclusions: string[];
   images: string[];
   is_active: boolean;
+  created_at: string;
+}
+
+export interface ConferenceDetails {
+  event_id: string;
+  organizer_entity: string | null;
+  days_count: number;
+  sessions_count: number;
+  speakers_count: number;
+  needs_av: boolean;
+  needs_translation: boolean;
+  needs_booths: boolean;
+  booths_count: number;
+  needs_registration: boolean;
+  needs_security: boolean;
+  needs_transport: boolean;
+  agenda_notes: string | null;
   created_at: string;
 }
 

@@ -13,13 +13,18 @@ export async function signUpAction(_prev: AuthState, formData: FormData): Promis
   const fullName = String(formData.get("full_name") ?? "");
   const role = String(formData.get("role") ?? "client");
   const businessName = String(formData.get("business_name") ?? "");
-  const category = String(formData.get("category") ?? "other");
+  // A provider may serve several categories; the first one is the primary.
+  const categories = (formData.getAll("categories") as string[]).filter(Boolean);
+  const category = categories[0] ?? String(formData.get("category") ?? "other");
 
   if (!email || !password || !fullName) {
     return { error: "الرجاء تعبئة جميع الحقول المطلوبة" };
   }
   if (password.length < 6) {
     return { error: "كلمة المرور يجب أن تكون 6 أحرف على الأقل" };
+  }
+  if (role === "provider" && categories.length === 0) {
+    return { error: "الرجاء اختيار مجال خدمة واحد على الأقل" };
   }
 
   const supabase = await createClient();
@@ -30,7 +35,9 @@ export async function signUpAction(_prev: AuthState, formData: FormData): Promis
       data: {
         full_name: fullName,
         role,
-        ...(role === "provider" ? { business_name: businessName || fullName, category } : {}),
+        ...(role === "provider"
+          ? { business_name: businessName || fullName, category, categories }
+          : {}),
       },
     },
   });

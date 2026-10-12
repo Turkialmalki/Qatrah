@@ -10,9 +10,11 @@ create extension if not exists "pgcrypto";
 -- ---------------------------------------------------------------------
 create type user_role as enum ('client', 'provider', 'admin');
 create type provider_status as enum ('pending', 'approved', 'rejected', 'suspended');
-create type provider_category as enum ('hall', 'catering', 'decor', 'photography', 'music', 'planning', 'other');
+create type provider_category as enum ('hall', 'catering', 'decor', 'photography', 'music', 'planning',
+                                      'av', 'translation', 'booths', 'security', 'transport', 'other');
 create type event_status as enum ('draft', 'planning', 'matched', 'confirmed', 'in_execution', 'completed', 'cancelled');
-create type event_type as enum ('wedding', 'engagement', 'graduation', 'corporate', 'birthday', 'other');
+create type event_type as enum ('wedding', 'engagement', 'graduation', 'corporate', 'birthday',
+                               'conference', 'exhibition', 'forum', 'workshop', 'festival', 'other');
 create type match_status as enum ('proposed', 'quoted', 'accepted', 'declined', 'expired');
 create type booking_status as enum ('pending_payment', 'paid', 'in_progress', 'completed', 'cancelled', 'disputed');
 create type payment_status as enum ('pending', 'paid', 'refunded', 'failed');
@@ -36,7 +38,8 @@ create table profiles (
 create table provider_profiles (
   id uuid primary key references profiles(id) on delete cascade,
   business_name text not null,
-  category provider_category not null,
+  category provider_category not null,          -- primary / display category
+  categories provider_category[] not null default '{}',  -- every category this provider serves
   bio text,
   status provider_status not null default 'pending',
   commercial_registration text,
@@ -80,9 +83,17 @@ create table services (
   base_price numeric(10,2) not null,
   min_price numeric(10,2),
   max_price numeric(10,2),
+  package_key text,            -- adopted platform package, null = provider's own listing
+  inclusions text[] default '{}',
   images text[] default '{}',
   is_active boolean not null default true,
-  created_at timestamptz not null default now()
+  created_at timestamptz not null default now(),
+  -- A provider who does not adopt a ready-made package must supply their own
+  -- photo and a full description of what they offer.
+  constraint services_custom_requires_media check (
+    package_key is not null
+    or (coalesce(array_length(images, 1), 0) > 0 and char_length(coalesce(description, '')) >= 80)
+  )
 );
 
 -- ---------------------------------------------------------------------
@@ -111,6 +122,26 @@ create table event_requirements (
   priority int not null default 3, -- 1..5, used by budget optimization engine
   allocated_budget numeric(10,2),
   notes text,
+  created_at timestamptz not null default now()
+);
+
+-- ---------------------------------------------------------------------
+-- CONFERENCES & EXHIBITIONS — extra detail for the non-social event track
+-- ---------------------------------------------------------------------
+create table conference_details (
+  event_id uuid primary key references events(id) on delete cascade,
+  organizer_entity text,
+  days_count int not null default 1 check (days_count between 1 and 30),
+  sessions_count int not null default 0 check (sessions_count >= 0),
+  speakers_count int not null default 0 check (speakers_count >= 0),
+  needs_av boolean not null default true,
+  needs_translation boolean not null default false,
+  needs_booths boolean not null default false,
+  booths_count int not null default 0 check (booths_count >= 0),
+  needs_registration boolean not null default true,
+  needs_security boolean not null default false,
+  needs_transport boolean not null default false,
+  agenda_notes text,
   created_at timestamptz not null default now()
 );
 
@@ -259,11 +290,18 @@ begin
   );
 
   if coalesce(new.raw_user_meta_data->>'role', 'client') = 'provider' then
-    insert into public.provider_profiles (id, business_name, category)
+    insert into public.provider_profiles (id, business_name, category, categories)
     values (
       new.id,
       coalesce(new.raw_user_meta_data->>'business_name', 'مقدم خدمة جديد'),
-      coalesce((new.raw_user_meta_data->>'category')::provider_category, 'other')
+      coalesce((new.raw_user_meta_data->>'category')::provider_category, 'other'),
+      -- `categories` carries every category the provider signed up to serve;
+      -- fall back to the single primary category when the list is absent.
+      coalesce(
+        (select array_agg(value::text::provider_category)
+           from jsonb_array_elements(new.raw_user_meta_data->'categories')),
+        array[coalesce((new.raw_user_meta_data->>'category')::provider_category, 'other')]
+      )
     );
   end if;
 
@@ -296,6 +334,7 @@ alter table halls enable row level security;
 alter table services enable row level security;
 alter table events enable row level security;
 alter table event_requirements enable row level security;
+alter table conference_details enable row level security;
 alter table design_concepts enable row level security;
 alter table matches enable row level security;
 alter table bookings enable row level security;
@@ -355,6 +394,14 @@ create policy "requirements_select" on event_requirements for select
   using (exists (select 1 from events e where e.id = event_id and (e.client_id = auth.uid() or is_admin()
     or exists (select 1 from matches m where m.event_id = e.id and m.provider_id = auth.uid()))));
 create policy "requirements_manage" on event_requirements for all
+  using (exists (select 1 from events e where e.id = event_id and (e.client_id = auth.uid() or is_admin())))
+  with check (exists (select 1 from events e where e.id = event_id and (e.client_id = auth.uid() or is_admin())));
+
+-- CONFERENCE DETAILS
+create policy "conference_details_select" on conference_details for select
+  using (exists (select 1 from events e where e.id = event_id and (e.client_id = auth.uid() or is_admin()
+    or exists (select 1 from matches m where m.event_id = e.id and m.provider_id = auth.uid()))));
+create policy "conference_details_manage" on conference_details for all
   using (exists (select 1 from events e where e.id = event_id and (e.client_id = auth.uid() or is_admin())))
   with check (exists (select 1 from events e where e.id = event_id and (e.client_id = auth.uid() or is_admin())));
 
@@ -426,3 +473,25 @@ insert into knowledge_base (category, title, content, tags) values
 ('التسعير', 'كيف يعمل محرك التسعير العادل', 'يقارن محرك التسعير العادل سعر كل مزود بمتوسط السوق لنفس فئة الخدمة والمدينة، ويحسب مؤشر عدالة السعر لضمان شفافية الأسعار للعميل.', array['تسعير','شفافية']),
 ('الجودة', 'معايير قبول مقدمي الخدمة', 'لا تقبل منصة قاطرة إلا مقدمي الخدمة المتخصصين الذين يجتازون معايير الجودة والتحقق من السجل التجاري والخبرة.', array['جودة','اعتماد']),
 ('الميزانية', 'محرك تحسين الميزانية', 'يوزع محرك تحسين الميزانية ميزانية العميل على بنود المناسبة (قاعة، تصوير، ديكور...) حسب الأولوية التي يحددها العميل لكل بند.', array['ميزانية']);
+
+-- =====================================================================
+-- STORAGE — public bucket for provider-uploaded service photos.
+-- Files are written under `<provider uuid>/…` so each provider can only
+-- write inside their own folder.
+-- =====================================================================
+insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+values ('service-images', 'service-images', true, 5242880,
+        array['image/jpeg', 'image/png', 'image/webp', 'image/avif'])
+on conflict (id) do update
+  set public = true,
+      file_size_limit = excluded.file_size_limit,
+      allowed_mime_types = excluded.allowed_mime_types;
+
+create policy "service_images_public_read" on storage.objects for select
+  using (bucket_id = 'service-images');
+create policy "service_images_insert_own_folder" on storage.objects for insert to authenticated
+  with check (bucket_id = 'service-images' and (storage.foldername(name))[1] = auth.uid()::text);
+create policy "service_images_update_own_folder" on storage.objects for update to authenticated
+  using (bucket_id = 'service-images' and (storage.foldername(name))[1] = auth.uid()::text);
+create policy "service_images_delete_own_folder" on storage.objects for delete to authenticated
+  using (bucket_id = 'service-images' and (storage.foldername(name))[1] = auth.uid()::text);

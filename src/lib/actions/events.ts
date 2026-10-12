@@ -7,40 +7,67 @@ import { optimizeBudget, type BudgetItemInput } from "@/lib/engines/budget";
 import { scoreHall, scoreService } from "@/lib/engines/matching";
 import { computeFairPrice } from "@/lib/engines/pricing";
 import { generateExecutionPlan } from "@/lib/engines/planning";
-import type { EventRow, Hall, ProviderCategory, ProviderProfile, ServiceItem } from "@/lib/types/database";
+import { trackForEventType } from "@/lib/utils";
+import type {
+  EventRow,
+  EventType,
+  Hall,
+  ProviderCategory,
+  ProviderProfile,
+  ServiceItem,
+} from "@/lib/types/database";
 
 export interface FormState {
   error?: string;
 }
 
-export async function createEventAction(_prev: FormState, formData: FormData): Promise<FormState> {
+interface CreatedEvent {
+  id: string;
+  error?: string;
+}
+
+/**
+ * Shared core for both creation flows: validates the common fields, inserts
+ * the event, then runs the budget optimization engine (module 9) to split the
+ * budget across the chosen categories by priority.
+ */
+async function createEventWithRequirements(formData: FormData): Promise<CreatedEvent> {
   const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  if (!user) return { error: "الرجاء تسجيل الدخول" };
+  if (!user) return { id: "", error: "الرجاء تسجيل الدخول" };
 
-  const title = String(formData.get("title") ?? "");
-  const event_type = String(formData.get("event_type") ?? "wedding");
+  const title = String(formData.get("title") ?? "").trim();
+  const event_type = String(formData.get("event_type") ?? "wedding") as EventType;
   const city = String(formData.get("city") ?? "الرياض");
   const guest_count = Number(formData.get("guest_count") ?? 100);
   const event_date = String(formData.get("event_date") ?? "") || null;
   const total_budget = Number(formData.get("total_budget") ?? 0);
-  const categories = formData.getAll("categories") as string[];
+  const categories = (formData.getAll("categories") as string[]).filter(Boolean);
 
   if (!title || total_budget <= 0 || categories.length === 0) {
-    return { error: "الرجاء تعبئة جميع الحقول واختيار خدمة واحدة على الأقل" };
+    return { id: "", error: "الرجاء تعبئة جميع الحقول واختيار خدمة واحدة على الأقل" };
   }
 
   const { data: event, error } = await supabase
     .from("events")
-    .insert({ client_id: user.id, title, event_type, city, guest_count, event_date, total_budget, status: "planning" })
+    .insert({
+      client_id: user.id,
+      title,
+      event_type,
+      city,
+      guest_count,
+      event_date,
+      total_budget,
+      status: "planning",
+      notes: String(formData.get("notes") ?? "") || null,
+    })
     .select()
     .single();
 
-  if (error || !event) return { error: "حدث خطأ أثناء إنشاء المناسبة" };
+  if (error || !event) return { id: "", error: "حدث خطأ أثناء إنشاء المناسبة" };
 
-  // Run budget optimization engine (module 9)
   const priorities: Record<string, number> = {};
   categories.forEach((c) => {
     priorities[c] = Number(formData.get(`priority_${c}`) ?? 3);
@@ -51,15 +78,58 @@ export async function createEventAction(_prev: FormState, formData: FormData): P
   }));
   const allocations = optimizeBudget(total_budget, items);
 
-  const requirementsPayload = allocations.map((a) => ({
-    event_id: event.id,
-    category: a.category,
-    priority: priorities[a.category],
-    allocated_budget: a.amount,
-  }));
-  await supabase.from("event_requirements").insert(requirementsPayload);
+  await supabase.from("event_requirements").insert(
+    allocations.map((a) => ({
+      event_id: event.id,
+      category: a.category,
+      priority: priorities[a.category],
+      allocated_budget: a.amount,
+    }))
+  );
 
-  redirect(`/dashboard/client/events/${event.id}`);
+  return { id: event.id as string };
+}
+
+/** الأفراح والمناسبات الاجتماعية — weddings, graduations, birthdays. */
+export async function createEventAction(_prev: FormState, formData: FormData): Promise<FormState> {
+  const created = await createEventWithRequirements(formData);
+  if (created.error) return { error: created.error };
+  redirect(`/dashboard/client/events/${created.id}`);
+}
+
+/**
+ * الفعاليات والمؤتمرات — conferences, exhibitions, forums and corporate
+ * events. Same core as a social occasion plus a `conference_details` row for
+ * the agenda, sessions, booths and logistics this track needs.
+ */
+export async function createConferenceEventAction(_prev: FormState, formData: FormData): Promise<FormState> {
+  const created = await createEventWithRequirements(formData);
+  if (created.error) return { error: created.error };
+
+  const supabase = await createClient();
+  const categories = (formData.getAll("categories") as string[]).filter(Boolean);
+
+  await supabase.from("conference_details").insert({
+    event_id: created.id,
+    organizer_entity: String(formData.get("organizer_entity") ?? "") || null,
+    days_count: Math.max(1, Number(formData.get("days_count") ?? 1)),
+    sessions_count: Math.max(0, Number(formData.get("sessions_count") ?? 0)),
+    speakers_count: Math.max(0, Number(formData.get("speakers_count") ?? 0)),
+    // The logistics flags follow the categories the organizer actually chose,
+    // so the two never drift apart.
+    needs_av: categories.includes("av"),
+    needs_translation: categories.includes("translation"),
+    needs_booths: categories.includes("booths"),
+    booths_count: categories.includes("booths") ? Math.max(0, Number(formData.get("booths_count") ?? 0)) : 0,
+    needs_security: categories.includes("security"),
+    needs_transport: categories.includes("transport"),
+    needs_registration: formData.get("needs_registration") === "on",
+    agenda_notes: String(formData.get("agenda_notes") ?? "") || null,
+  });
+
+  // The event and its budget split already exist, so send the organizer to it
+  // either way — a missing details row only costs them the conference panel.
+  redirect(`/dashboard/client/events/${created.id}`);
 }
 
 export async function runMatchingAction(eventId: string) {
@@ -101,6 +171,8 @@ export async function runMatchingAction(eventId: string) {
         });
       }
     } else {
+      // Matching keys on the service's own category, so a provider who offers
+      // several categories is considered for each of them independently.
       const { data: services } = await supabase
         .from("services")
         .select("*, provider_profiles!inner(*)")
@@ -181,25 +253,38 @@ export async function payBookingAction(eventId: string, bookingId: string) {
 
   // Once all bookings for the event are paid, generate the execution plan (module 11)
   const { data: event } = await supabase.from("events").select("*").eq("id", eventId).single();
-  const { data: bookings } = await supabase.from("bookings").select("*, matches(*)").eq("event_id", eventId);
+  const { data: bookings } = await supabase.from("bookings").select("*").eq("event_id", eventId);
 
   const allPaid = (bookings ?? []).every((b) => b.status === "paid" || b.status === "in_progress" || b.status === "completed");
   if (event && allPaid && (event as EventRow).event_date) {
-    const { data: matchesWithProvider } = await supabase
+    // Derive the booked categories from what was actually booked — the hall or
+    // the service itself — rather than from the provider's primary category,
+    // since one provider may serve several categories.
+    const { data: acceptedMatches } = await supabase
       .from("matches")
-      .select("*, provider_profiles(category)")
+      .select("hall_id, service_id, services(category)")
       .eq("event_id", eventId)
       .eq("status", "accepted");
 
+    // An embedded one-to-one row comes back as an object or a single-element
+    // array depending on how the relationship is inferred — accept both.
+    type EmbeddedService = { category: ProviderCategory } | { category: ProviderCategory }[] | null;
+    const serviceCategory = (s: EmbeddedService): ProviderCategory | undefined =>
+      Array.isArray(s) ? s[0]?.category : (s?.category ?? undefined);
+
     const categories = Array.from(
       new Set(
-        ((matchesWithProvider ?? []) as { provider_profiles: { category: ProviderCategory } | null }[])
-          .map((m) => m.provider_profiles?.category)
+        ((acceptedMatches ?? []) as unknown as { hall_id: string | null; services: EmbeddedService }[])
+          .map((m) => (m.hall_id ? ("hall" as ProviderCategory) : serviceCategory(m.services)))
           .filter(Boolean) as ProviderCategory[]
       )
     );
 
-    const plan = generateExecutionPlan((event as EventRow).event_date as string, categories);
+    const plan = generateExecutionPlan(
+      (event as EventRow).event_date as string,
+      categories,
+      trackForEventType((event as EventRow).event_type)
+    );
     const existingTasks = await supabase.from("execution_tasks").select("id").eq("event_id", eventId);
     if (!existingTasks.data || existingTasks.data.length === 0) {
       await supabase.from("execution_tasks").insert(
@@ -210,6 +295,7 @@ export async function payBookingAction(eventId: string, bookingId: string) {
   }
 
   revalidatePath(`/dashboard/client/events/${eventId}`);
+  revalidatePath("/dashboard/client/payments");
 }
 
 export async function submitEvaluationAction(formData: FormData) {
@@ -236,4 +322,12 @@ export async function submitEvaluationAction(formData: FormData) {
   await supabase.from("bookings").update({ status: "completed" }).eq("id", booking_id);
 
   revalidatePath(`/dashboard/client/events/${event_id}`);
+}
+
+/** Client-side task tracking (module 10) — tick off execution steps. */
+export async function updateEventTaskStatusAction(eventId: string, taskId: string, status: string) {
+  const supabase = await createClient();
+  await supabase.from("execution_tasks").update({ status }).eq("id", taskId);
+  revalidatePath(`/dashboard/client/events/${eventId}/execution`);
+  revalidatePath(`/dashboard/client/events/${eventId}`);
 }

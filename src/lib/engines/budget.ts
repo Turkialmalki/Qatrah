@@ -12,6 +12,13 @@ const CATEGORY_BASE_WEIGHT: Record<ProviderCategory, number> = {
   photography: 0.1,
   music: 0.07,
   planning: 0.06,
+  // conference & exhibition categories — audio/visual and exhibition stands
+  // carry most of the cost once the venue is booked.
+  av: 0.18,
+  booths: 0.14,
+  translation: 0.06,
+  security: 0.05,
+  transport: 0.04,
   other: 0.02,
 };
 

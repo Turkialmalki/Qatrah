@@ -1,10 +1,10 @@
 @import "tailwindcss";
 
 :root {
-  --background: #f7f4ec;
+  --background: #faf8f3;
   --foreground: #0b3041;
 
-  --color-navy-950: #081f2b;
+  --color-navy-950: #071b25;
   --color-navy-900: #0b3041;
   --color-navy-800: #123b4e;
   --color-navy-700: #1a4a60;
@@ -14,20 +14,21 @@
   --color-green-800: #1f4d3d;
   --color-green-700: #2a634f;
 
+  --color-gold-700: #8a6a16;
   --color-gold-600: #a9821f;
   --color-gold-500: #c9a227;
   --color-gold-400: #dcb94a;
   --color-gold-300: #e9d493;
   --color-gold-100: #f7edcf;
 
-  --color-cream: #f7f4ec;
-  --color-cream-dark: #ece5d2;
+  --color-cream: #faf8f3;
+  --color-cream-dark: #f1ece0;
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: "Tajawal", "Segoe UI", "Noto Sans Arabic", Tahoma, Geneva, Arial, sans-serif;
+  --font-sans: var(--font-tajawal), "Segoe UI", "Noto Sans Arabic", Tahoma, Arial, sans-serif;
 
   --color-navy-950: var(--color-navy-950);
   --color-navy-900: var(--color-navy-900);
@@ -39,6 +40,7 @@
   --color-green-800: var(--color-green-800);
   --color-green-700: var(--color-green-700);
 
+  --color-gold-700: var(--color-gold-700);
   --color-gold-600: var(--color-gold-600);
   --color-gold-500: var(--color-gold-500);
   --color-gold-400: var(--color-gold-400);
@@ -49,9 +51,23 @@
   --color-cream-dark: var(--color-cream-dark);
 }
 
+html {
+  scroll-behavior: smooth;
+  -webkit-tap-highlight-color: transparent;
+}
+
 body {
   background: var(--background);
   color: var(--foreground);
+  text-wrap: pretty;
+}
+
+/* Arabic headings read better slightly tighter than the Latin default. */
+h1,
+h2,
+h3 {
+  letter-spacing: -0.01em;
+  text-wrap: balance;
 }
 
 ::selection {
@@ -59,12 +75,17 @@ body {
   color: var(--color-navy-950);
 }
 
+:focus-visible {
+  outline: 2px solid var(--color-gold-500);
+  outline-offset: 2px;
+}
+
 .gold-gradient {
   background: linear-gradient(135deg, #e9d493 0%, #c9a227 45%, #a9821f 100%);
 }
 
 .navy-gradient {
-  background: linear-gradient(160deg, #0b3041 0%, #081f2b 100%);
+  background: linear-gradient(160deg, #0b3041 0%, #071b25 100%);
 }
 
 .text-gold-gradient {
@@ -74,14 +95,53 @@ body {
   color: transparent;
 }
 
+/* Soft, close-to-the-surface elevation — one shadow used everywhere. */
 .card-shadow {
-  box-shadow: 0 1px 2px rgba(11, 48, 65, 0.06), 0 8px 24px -8px rgba(11, 48, 65, 0.12);
+  box-shadow:
+    0 1px 2px rgba(7, 27, 37, 0.04),
+    0 6px 20px -10px rgba(7, 27, 37, 0.1);
+}
+
+.card-shadow-lg {
+  box-shadow:
+    0 2px 4px rgba(7, 27, 37, 0.05),
+    0 18px 40px -16px rgba(7, 27, 37, 0.18);
+}
+
+/* Faint grid used behind dark hero sections. */
+.hero-grid {
+  background-image:
+    linear-gradient(rgba(233, 212, 147, 0.06) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(233, 212, 147, 0.06) 1px, transparent 1px);
+  background-size: 56px 56px;
 }
 
 @keyframes fade-up {
-  from { opacity: 0; transform: translateY(12px); }
-  to { opacity: 1; transform: translateY(0); }
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
+
 .animate-fade-up {
   animation: fade-up 0.5s ease-out both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+  .animate-fade-up {
+    animation: none;
+  }
+}
+
+/* Keep long Arabic tables and code blocks from pushing the page sideways. */
+.scroll-x {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
 }
