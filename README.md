@@ -47,7 +47,7 @@ Public category pages at `/services/[category]` show the packages alongside the 
 
 2. **Create a Supabase project** at [supabase.com](https://supabase.com), then in the SQL editor run the full contents of `supabase/schema.sql` once. This creates every table, enum, trigger, Row Level Security policy, and the public `service-images` Storage bucket used for provider uploads.
 
-   For an existing project created before the packages/conferences work, run `supabase/migrations/0002_packages_conferences_multicategory.sql` instead — **in two steps**, since Postgres will not let a new enum label be used in the transaction that created it. Run the `0002a` block (the `alter type … add value` statements) on its own first, then the `0002b` block.
+   For an existing project created before the packages/conferences work, run the two migration files in order instead: `supabase/migrations/0002a_enum_additions.sql` first, **let it commit**, then `0002b_packages_conferences_multicategory.sql`. They are split because Postgres will not let a new enum label be used in the transaction that created it.
 
 3. **Environment variables** — copy `.env.local.example` to `.env.local` and fill in from Supabase Project Settings → API:
    ```

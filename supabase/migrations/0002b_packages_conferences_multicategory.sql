@@ -1,33 +1,13 @@
 -- =====================================================================
--- QATRAH — migration 0002
+-- QATRAH — migration 0002b
 --   1. ready-made service packages + mandatory media for custom services
---   2. conferences & exhibitions track (new event types + details table)
+--   2. conferences & exhibitions track (conference_details)
 --   3. providers may offer several service categories
 --   4. public storage bucket for provider-uploaded service images
 --
--- The `alter type ... add value` statements live in 0002a and must run in
--- their own transaction — Postgres refuses to use a new enum label in the
--- same transaction that created it.
+-- Run 0002a first and let it commit — this file uses the enum labels it adds.
 -- =====================================================================
 
--- ---------------------------------------------------------------------
--- 0002a — enum additions (run this block on its own, first)
--- ---------------------------------------------------------------------
-alter type event_type add value if not exists 'conference';
-alter type event_type add value if not exists 'exhibition';
-alter type event_type add value if not exists 'forum';
-alter type event_type add value if not exists 'workshop';
-alter type event_type add value if not exists 'festival';
-
-alter type provider_category add value if not exists 'av';
-alter type provider_category add value if not exists 'translation';
-alter type provider_category add value if not exists 'booths';
-alter type provider_category add value if not exists 'security';
-alter type provider_category add value if not exists 'transport';
-
--- ---------------------------------------------------------------------
--- 0002b — everything else (run after 0002a has committed)
--- ---------------------------------------------------------------------
 
 -- 3. A provider is no longer pinned to a single category. `category` is kept
 --    as the primary/display category; `categories` is the full set they serve.
